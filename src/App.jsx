@@ -13,7 +13,7 @@ const inviteButtons = [
   },
   {
     label: "Local Recepção",
-    url: "https://maps.app.goo.gl/EYrKamhaaA9FyDKr5",
+    url: "https://maps.app.goo.gl/RhgyXhvxNw4HhJHr5",
     imageSrc: "/assets/botao-3.png",
   },
 ];
@@ -207,19 +207,29 @@ export default function App() {
             </button>
           </div>
         ) : (
-          <video
-            ref={videoRef}
-            className={`media ${canStartVideo ? "media--clickable" : ""}`}
-            onClick={canStartVideo ? handlePlay : undefined}
-            onPlay={() => setCanStartVideo(false)}
-            onEnded={handleVideoEnded}
-            playsInline
-            preload="metadata"
-            poster="/assets/convite.png"
-          >
-            <source src="/assets/convite.mp4" type="video/mp4" />
-            Seu navegador não suporta vídeo HTML5.
-          </video>
+          <div className="video-wrapper">
+            <video
+              ref={videoRef}
+              className={`media ${canStartVideo ? "media--clickable" : ""}`}
+              onClick={canStartVideo ? handlePlay : undefined}
+              onPlay={() => setCanStartVideo(false)}
+              onEnded={handleVideoEnded}
+              playsInline
+              preload="metadata"
+              poster="/assets/convite.png"
+            >
+              <source src="/assets/convite.mp4" type="video/mp4" />
+              Seu navegador não suporta vídeo HTML5.
+            </video>
+            {canStartVideo && (
+              <div className="tap-indicator">
+                <span>Aperte</span>
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 4v14M19 11l-7 7-7-7" />
+                </svg>
+              </div>
+            )}
+          </div>
         )}
       </section>
 
