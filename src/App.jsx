@@ -33,7 +33,6 @@ export default function App() {
 
     return window.localStorage.getItem(inviteSeenStorageKey) === "true";
   });
-  const [orientationBlocked, setOrientationBlocked] = useState(false);
   const [canStartVideo, setCanStartVideo] = useState(true);
 
   const applyTransform = (tx, ty, scale) => {
@@ -88,55 +87,18 @@ export default function App() {
   }, [showStaticInvite]);
 
   useEffect(() => {
-    let orientationLockFailed = false;
-
-    const isTouchDevice =
-      window.matchMedia("(pointer: coarse)").matches ||
-      window.matchMedia("(hover: none)").matches;
-
-    const updateOrientationState = () => {
-      const isLandscape = window.matchMedia("(orientation: landscape)").matches;
-      setOrientationBlocked(Boolean(isTouchDevice && isLandscape && orientationLockFailed));
-    };
-
     const tryLockOrientation = async () => {
       if (!screen.orientation?.lock) {
-        orientationLockFailed = true;
-        updateOrientationState();
         return;
       }
-
       try {
         await screen.orientation.lock("portrait-primary");
-        orientationLockFailed = false;
       } catch {
-        orientationLockFailed = true;
-      } finally {
-        updateOrientationState();
+        // Do nothing, we will let it natively letterbox
       }
-    };
-
-    let resizeTimeoutId;
-    const handleResize = () => {
-      clearTimeout(resizeTimeoutId);
-      resizeTimeoutId = setTimeout(() => {
-        updateOrientationState();
-      }, 100);
     };
 
     tryLockOrientation();
-    updateOrientationState();
-
-    window.addEventListener("resize", handleResize);
-    window.addEventListener("orientationchange", handleResize);
-    screen.orientation?.addEventListener("change", handleResize);
-
-    return () => {
-      clearTimeout(resizeTimeoutId);
-      window.removeEventListener("resize", handleResize);
-      window.removeEventListener("orientationchange", handleResize);
-      screen.orientation?.removeEventListener("change", handleResize);
-    };
   }, []);
 
   const handlePlay = async () => {
@@ -255,16 +217,19 @@ export default function App() {
   };
 
   return (
-    <main className="page" aria-label="Convite de casamento">
+    <main
+      className="page"
+      aria-label="Convite de casamento"
+      onTouchStart={showStaticInvite ? handleInviteTouchStart : undefined}
+      onTouchMove={showStaticInvite ? handleInviteTouchMove : undefined}
+      onTouchEnd={showStaticInvite ? handleInviteTouchEnd : undefined}
+      onTouchCancel={showStaticInvite ? handleInviteTouchEnd : undefined}
+    >
       <section className="portrait-shell" aria-label="Conteúdo principal">
         {showStaticInvite ? (
           <div
             ref={mediaContainerRef}
             className="media-container"
-            onTouchStart={handleInviteTouchStart}
-            onTouchMove={handleInviteTouchMove}
-            onTouchEnd={handleInviteTouchEnd}
-            onTouchCancel={handleInviteTouchEnd}
           >
             <img
               className="media"
@@ -327,16 +292,6 @@ export default function App() {
         )}
       </section>
 
-      {orientationBlocked ? (
-        <div className="orientation-overlay" role="alert" aria-live="assertive">
-          <div className="orientation-overlay__card">
-            <span className="orientation-overlay__icon" aria-hidden="true">
-              ↻
-            </span>
-            <p>Vire o dispositivo para usar o aplicativo na vertical.</p>
-          </div>
-        </div>
-      ) : null}
     </main>
   );
 }
