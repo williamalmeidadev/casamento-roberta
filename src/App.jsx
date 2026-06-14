@@ -36,20 +36,36 @@ export default function App() {
   const [canStartVideo, setCanStartVideo] = useState(true);
 
   useEffect(() => {
+    let timeoutId;
     const updateAppHeight = () => {
-      document.documentElement.style.setProperty("--app-height", `${window.innerHeight}px`);
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        document.documentElement.style.setProperty("--app-height", `${window.innerHeight}px`);
+      }, 100);
     };
 
-    updateAppHeight();
+    document.documentElement.style.setProperty("--app-height", `${window.innerHeight}px`);
 
     window.addEventListener("resize", updateAppHeight);
     window.visualViewport?.addEventListener("resize", updateAppHeight);
 
     return () => {
+      clearTimeout(timeoutId);
       window.removeEventListener("resize", updateAppHeight);
       window.visualViewport?.removeEventListener("resize", updateAppHeight);
     };
   }, []);
+
+  useEffect(() => {
+    if (!showStaticInvite) {
+      const preloadMain = new Image();
+      preloadMain.src = "/assets/telaconvite.png";
+      inviteButtons.forEach((btn) => {
+        const preloadBtn = new Image();
+        preloadBtn.src = btn.imageSrc;
+      });
+    }
+  }, [showStaticInvite]);
 
   useEffect(() => {
     let orientationLockFailed = false;
@@ -80,8 +96,12 @@ export default function App() {
       }
     };
 
+    let resizeTimeoutId;
     const handleResize = () => {
-      updateOrientationState();
+      clearTimeout(resizeTimeoutId);
+      resizeTimeoutId = setTimeout(() => {
+        updateOrientationState();
+      }, 100);
     };
 
     tryLockOrientation();
@@ -92,6 +112,7 @@ export default function App() {
     screen.orientation?.addEventListener("change", handleResize);
 
     return () => {
+      clearTimeout(resizeTimeoutId);
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("orientationchange", handleResize);
       screen.orientation?.removeEventListener("change", handleResize);
@@ -212,6 +233,13 @@ export default function App() {
               ref={videoRef}
               className={`media ${canStartVideo ? "media--clickable" : ""}`}
               onClick={canStartVideo ? handlePlay : undefined}
+              onKeyDown={(e) => {
+                if (canStartVideo && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  handlePlay();
+                }
+              }}
+              tabIndex={canStartVideo ? 0 : undefined}
               onPlay={() => setCanStartVideo(false)}
               onEnded={handleVideoEnded}
               playsInline
@@ -222,7 +250,7 @@ export default function App() {
               Seu navegador não suporta vídeo HTML5.
             </video>
             {canStartVideo && (
-              <div className="tap-indicator">
+              <div className="tap-indicator" aria-hidden="true">
                 <span>Aperte</span>
                 <svg viewBox="0 0 24 24">
                   <path d="M12 4v14M19 11l-7 7-7-7" />
