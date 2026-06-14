@@ -54,7 +54,7 @@ body {
   align-items: center;
   justify-content: center;
   touch-action: none;
-  transform: scale(var(--invite-scale, 1));
+  transform: translate(var(--invite-tx, 0px), var(--invite-ty, 0px)) scale(var(--invite-scale, 1));
   transform-origin: center center;
 }
 

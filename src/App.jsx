@@ -22,8 +22,10 @@ const inviteSeenStorageKey = "roberta-invite-video-seen";
 
 export default function App() {
   const videoRef = useRef(null);
-  const pinchStartDistanceRef = useRef(null);
-  const pinchStartScaleRef = useRef(1);
+  const mediaContainerRef = useRef(null);
+  const transformRef = useRef({ x: 0, y: 0, scale: 1 });
+  const pinchStartRef = useRef({ distance: 0, transform: null, center: null });
+  const panStartRef = useRef(null);
   const [showStaticInvite, setShowStaticInvite] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -32,8 +34,26 @@ export default function App() {
     return window.localStorage.getItem(inviteSeenStorageKey) === "true";
   });
   const [orientationBlocked, setOrientationBlocked] = useState(false);
-  const [inviteScale, setInviteScale] = useState(1);
   const [canStartVideo, setCanStartVideo] = useState(true);
+
+  const applyTransform = (tx, ty, scale) => {
+    if (scale <= 1) {
+      tx = 0;
+      ty = 0;
+      scale = 1;
+    } else {
+      const bounceX = (window.innerWidth * (scale - 1)) / 1.5;
+      const bounceY = (window.innerHeight * (scale - 1)) / 1.5;
+      tx = Math.max(Math.min(tx, bounceX), -bounceX);
+      ty = Math.max(Math.min(ty, bounceY), -bounceY);
+    }
+    transformRef.current = { x: tx, y: ty, scale };
+    if (mediaContainerRef.current) {
+      mediaContainerRef.current.style.setProperty("--invite-tx", `${tx}px`);
+      mediaContainerRef.current.style.setProperty("--invite-ty", `${ty}px`);
+      mediaContainerRef.current.style.setProperty("--invite-scale", scale);
+    }
+  };
 
   useEffect(() => {
     let timeoutId;
@@ -144,47 +164,93 @@ export default function App() {
 
   const handleReplay = () => {
     window.localStorage.removeItem(inviteSeenStorageKey);
-    setInviteScale(1);
+    applyTransform(0, 0, 1);
     setCanStartVideo(true);
     setShowStaticInvite(false);
   };
 
   const getTouchDistance = (touches) => {
-    const firstTouch = touches[0];
-    const secondTouch = touches[1];
     return Math.hypot(
-      secondTouch.clientX - firstTouch.clientX,
-      secondTouch.clientY - firstTouch.clientY
+      touches[1].clientX - touches[0].clientX,
+      touches[1].clientY - touches[0].clientY
     );
   };
 
-  const handleInviteTouchStart = (event) => {
-    if (event.touches.length !== 2) {
-      return;
-    }
+  const getTouchCenter = (touches) => {
+    return {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2,
+    };
+  };
 
-    pinchStartDistanceRef.current = getTouchDistance(event.touches);
-    pinchStartScaleRef.current = inviteScale;
+  const handleInviteTouchStart = (event) => {
+    if (event.touches.length === 2) {
+      pinchStartRef.current = {
+        distance: getTouchDistance(event.touches),
+        transform: { ...transformRef.current },
+        center: getTouchCenter(event.touches),
+      };
+    } else if (event.touches.length === 1) {
+      panStartRef.current = {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY,
+        transform: { ...transformRef.current },
+      };
+    }
   };
 
   const handleInviteTouchMove = (event) => {
-    if (event.touches.length !== 2 || !pinchStartDistanceRef.current) {
-      return;
+    if (event.touches.length === 2 && pinchStartRef.current.distance) {
+      event.preventDefault();
+      const currentDistance = getTouchDistance(event.touches);
+      const currentCenter = getTouchCenter(event.touches);
+      const start = pinchStartRef.current;
+
+      const scaleRatio = currentDistance / start.distance;
+      let newScale = start.transform.scale * scaleRatio;
+
+      newScale = Math.max(1, Math.min(newScale, 3));
+
+      const actualScaleRatio = newScale / start.transform.scale;
+
+      const originX = window.innerWidth / 2;
+      const originY = window.innerHeight / 2;
+
+      const dx_start = start.center.x - originX - start.transform.x;
+      const dy_start = start.center.y - originY - start.transform.y;
+
+      const tx = currentCenter.x - originX - dx_start * actualScaleRatio;
+      const ty = currentCenter.y - originY - dy_start * actualScaleRatio;
+
+      applyTransform(tx, ty, newScale);
+    } else if (event.touches.length === 1 && panStartRef.current) {
+      event.preventDefault();
+      const dx = event.touches[0].clientX - panStartRef.current.x;
+      const dy = event.touches[0].clientY - panStartRef.current.y;
+
+      const newX = panStartRef.current.transform.x + dx;
+      const newY = panStartRef.current.transform.y + dy;
+
+      applyTransform(newX, newY, transformRef.current.scale);
     }
-
-    event.preventDefault();
-
-    const nextDistance = getTouchDistance(event.touches);
-    const nextScale =
-      pinchStartScaleRef.current * (nextDistance / pinchStartDistanceRef.current);
-
-    setInviteScale(Math.min(Math.max(nextScale, 1), 2.6));
   };
 
   const handleInviteTouchEnd = (event) => {
     if (event.touches.length < 2) {
-      pinchStartDistanceRef.current = null;
-      pinchStartScaleRef.current = inviteScale;
+      pinchStartRef.current = { distance: 0, transform: null, center: null };
+    }
+    if (event.touches.length === 1) {
+      panStartRef.current = {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY,
+        transform: { ...transformRef.current },
+      };
+    }
+    if (event.touches.length === 0) {
+      panStartRef.current = null;
+      if (transformRef.current.scale <= 1) {
+        applyTransform(0, 0, 1);
+      }
     }
   };
 
@@ -193,12 +259,12 @@ export default function App() {
       <section className="portrait-shell" aria-label="Conteúdo principal">
         {showStaticInvite ? (
           <div
+            ref={mediaContainerRef}
             className="media-container"
             onTouchStart={handleInviteTouchStart}
             onTouchMove={handleInviteTouchMove}
             onTouchEnd={handleInviteTouchEnd}
             onTouchCancel={handleInviteTouchEnd}
-            style={{ "--invite-scale": inviteScale }}
           >
             <img
               className="media"
